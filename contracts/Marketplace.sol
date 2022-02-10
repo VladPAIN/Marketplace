@@ -7,6 +7,7 @@ import "./ERC1155.sol";
 contract Marketplace is AccessControl {
 
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     bytes4 private constant ERC721_INTERFACE = 0x80ac58cd;
     bytes4 private constant ERC1155_INTERFACE = 0xd9b67a26;
@@ -20,7 +21,6 @@ contract Marketplace is AccessControl {
     uint256 auctionTime = 259200;
     uint256 bidForEnding = 3;
     uint256 decimals = 10**18;
-    bool locked = false;
 
     struct Listing {
         TokenStatus status;
@@ -58,33 +58,56 @@ contract Marketplace is AccessControl {
     event MakeBid(uint256 auctionNumber, address buyer, uint256 newPrice, uint256 numBid);
     event CancelAuction(address seller, uint tokenId, uint amount);
 
-    // Elems public ELEMS;
-    // Items public ITEMS;
+    Elements public elemERC721;
+    Items public itemsERC1155;
 
-    constructor() {
+    constructor(address _elemERC721, address _itemsERC1155) {
+
+        elemERC721 = Elements(_elemERC721);
+        itemsERC1155 = Items(_itemsERC1155);
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
 
         _setRoleAdmin(ADMIN_ROLE, DEFAULT_ADMIN_ROLE);
-        // ELEMS.grantRole(MINTER_ROLE, address(this));
-        // ITEMS.grantRole(MINTER_ROLE, address(this));
 
     }
 
-    // function mint(address token, string memory tokenURI, uint256 tokenId, uint256 amount) public {
-    //     if(IERC165(token).supportsInterface(ERC721_INTERFACE)) {
-    //         ELEMS.mintNFT(msg.sender, tokenURI);
-    //     }
+    function mint(address token, string memory tokenURI, uint256 tokenId, uint256 amount) public {
+        if(IERC165(token).supportsInterface(ERC721_INTERFACE)) {
+            require(elemERC721.hasRole(MINTER_ROLE, msg.sender), "You dont have minter role");
+            elemERC721.mintNFT(msg.sender, tokenURI);
+        }
 
-    //     else if(IERC165(token).supportsInterface(ERC1155_INTERFACE)) {
-    //         ITEMS.mintNFT(msg.sender, tokenId, amount);
-    //     }
+        else if(IERC165(token).supportsInterface(ERC1155_INTERFACE)) {
+            require(itemsERC1155.hasRole(MINTER_ROLE, msg.sender), "You dont have minter role");
+            itemsERC1155.mintNFT(msg.sender, tokenId, amount);
+        }
 
-    //     else {
-    //         revert("Wrong address");
-    //     }
-    // }
+        else {
+            revert("Wrong address");
+        }
+    }
+
+    function getAuctionTime() view public returns(uint256) {
+        return auctionTime;
+    }
+
+    function setAuctionTime(uint256 newAuctionTime) public returns(bool) {
+        require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not a admin");
+        auctionTime = newAuctionTime;
+        return true;
+    }
+
+    function getMinBid() view public returns(uint256) {
+        return bidForEnding;
+    }
+
+    function setMinBid(uint256 minBid) public returns(bool) {
+        require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not a admin");
+        bidForEnding = minBid;
+        return true;
+    }
 
     function listItem(address token, uint256 tokenId, uint256 price, uint256 amount) external {
 

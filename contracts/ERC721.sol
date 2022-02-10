@@ -31,7 +31,7 @@ contract Elements is ERC721URIStorage, AccessControl {
     }
 
 
-    function mintNFT(address recipient, string memory tokenURI) public returns (uint256) {
+    function mintNFT(address recipient, string memory tokenURI) public {
         require(hasRole(MINTER_ROLE, msg.sender), "Caller is not a minter");
 
         _tokenIds.increment();
@@ -40,7 +40,6 @@ contract Elements is ERC721URIStorage, AccessControl {
         _mint(recipient, newItemId);
         _setTokenURI(newItemId, tokenURI);
 
-        return newItemId;
     }
 
     function burnNFT(address owner, uint256 tokenId) public {

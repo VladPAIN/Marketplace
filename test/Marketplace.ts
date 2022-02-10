@@ -9,20 +9,46 @@ describe('Farm contract', () => {
     const provider = waffle.provider;
 
     beforeEach(async () => {
+
+        [owner, addr1, addr2] = await hre.ethers.getSigners();
+
         Elements = await hre.ethers.getContractFactory("Elements");
         Items = await hre.ethers.getContractFactory("Items");
         Marketplace = await hre.ethers.getContractFactory("Marketplace");
 
         elems = await Elements.deploy();
-        items = await Items.deploy();
-        market = await Marketplace.deploy();
+        items = await Items.deploy();        
 
-        [owner, addr1, addr2] = await hre.ethers.getSigners();
-
+        market = await Marketplace.deploy(elems.address, items.address);
 
     });
 
+    describe("Admins func", function () {
+        it("Should change auction time", async function () {
+            await expect(market.connect(addr1).setAuctionTime(100)).to.be.revertedWith('Caller is not a admin');
+            await market.grantRole("0xa49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775", addr1.address);
+            await market.connect(addr1).setAuctionTime(100);
+            expect(await market.getAuctionTime()).to.equal("100");
+        });
+
+        it("Should change auction min bid", async function () {
+            await expect(market.connect(addr1).setMinBid(5)).to.be.revertedWith('Caller is not a admin');
+            await market.grantRole("0xa49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775", addr1.address);
+            await market.connect(addr1).setMinBid(5);
+            expect(await market.getMinBid()).to.equal("5");
+        });
+    });
+
     describe("ERC721", function () {
+
+        it("Should mint item", async function () {
+            await elems.grantRole("0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6", market.address);
+            await expect(market.connect(addr1).mint(elems.address, "link", 1, 1)).to.be.revertedWith('You dont have minter role');
+            await elems.grantRole("0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6", addr1.address);
+
+            await market.connect(addr1).mint(elems.address, "link", 1, 1);
+            expect(await elems.balanceOf(addr1.address)).to.equal("1");
+        });
 
         it("Should list item", async function () {
             await elems.mintNFT(addr1.address, "link");
@@ -185,6 +211,15 @@ describe('Farm contract', () => {
     });
 
     describe("ERC1155", function () {
+
+        it("Should mint item", async function () {
+            await items.grantRole("0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6", market.address);
+            await expect(market.connect(addr1).mint(items.address, "", 1, 4)).to.be.revertedWith('You dont have minter role');
+            await items.grantRole("0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6", addr1.address);
+
+            await market.connect(addr1).mint(items.address, "", 1, 4);
+            expect(await items.balanceOf(addr1.address, 1)).to.equal("4");
+        });
 
         it("Should list item", async function () {
             await items.mintNFT(addr1.address, 1, 4);

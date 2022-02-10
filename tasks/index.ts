@@ -1,1 +1,1 @@
-import "./mint";
+import "./mint721";

@@ -28,14 +28,14 @@ describe('Farm contract', () => {
             await expect(market.connect(addr1).setAuctionTime(100)).to.be.revertedWith('Caller is not a admin');
             await market.grantRole("0xa49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775", addr1.address);
             await market.connect(addr1).setAuctionTime(100);
-            expect(await market.getAuctionTime()).to.equal("100");
+            expect(await market.auctionTime()).to.equal("100");
         });
 
         it("Should change auction min bid", async function () {
             await expect(market.connect(addr1).setMinBid(5)).to.be.revertedWith('Caller is not a admin');
             await market.grantRole("0xa49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775", addr1.address);
             await market.connect(addr1).setMinBid(5);
-            expect(await market.getMinBid()).to.equal("5");
+            expect(await market.bidForEnding()).to.equal("5");
         });
     });
 
@@ -56,6 +56,7 @@ describe('Farm contract', () => {
 
             await expect(market.connect(addr1).listItem(elems.address, 1, 100, 0)).to.be.revertedWith('Error amount');
 
+            await expect(market.connect(addr1).listItem(elems.address, 1, 100, 2)).to.be.revertedWith('Amount should be equal to 1');
             await market.connect(addr1).listItem(elems.address, 1, 100, 1);
             
             expect(await elems.balanceOf(addr1.address)).to.equal("0");
@@ -111,10 +112,10 @@ describe('Farm contract', () => {
             await elems.connect(owner).approve(market.address, 1);
 
             await market.connect(owner).listItemOnAuction(elems.address, 1, 10, 1);
-            await market.connect(addr2).makeBid(1, 20, {value: hre.ethers.utils.parseEther("20")});
-            await market.connect(addr1).makeBid(1, 30, {value: hre.ethers.utils.parseEther("30")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("20")});
+            await market.connect(addr1).makeBid(1, {value: hre.ethers.utils.parseEther("30")});
             
-            expect(await market.getAuctionBid(1)).to.equal("30");
+            expect(await market.getAuctionBid(1)).to.equal("30000000000000000000");
             await market.connect(addr2).withdraw();
 
         });
@@ -134,7 +135,7 @@ describe('Farm contract', () => {
 
             await elems.connect(addr1).approve(market.address, 1);
             await market.connect(addr1).listItemOnAuction(elems.address, 1, 10, 1);
-            await market.connect(addr2).makeBid(1, 20, {value: hre.ethers.utils.parseEther("20")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("20")});
             await expect(market.connect(addr1).cancelAuction(1)).to.be.revertedWith('Bet already placed');
         });
 
@@ -144,12 +145,12 @@ describe('Farm contract', () => {
 
             await market.connect(owner).listItemOnAuction(elems.address, 1, 10, 1);
 
-            await market.connect(addr2).makeBid(1, 20, {value: hre.ethers.utils.parseEther("20")});
-            await market.connect(addr1).makeBid(1, 30, {value: hre.ethers.utils.parseEther("30")});
-            await market.connect(addr2).makeBid(1, 40, {value: hre.ethers.utils.parseEther("40")});
-            await market.connect(addr1).makeBid(1, 50, {value: hre.ethers.utils.parseEther("50")});
-            // console.log(await market.connect(addr2).getWithdraw());
-            // console.log(await market.connect(addr1).getWithdraw());
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("20")});
+            await market.connect(addr1).makeBid(1, {value: hre.ethers.utils.parseEther("30")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("40")});
+            await market.connect(addr1).makeBid(1, {value: hre.ethers.utils.parseEther("50")});
+            //console.log(await market.connect(addr2).getWithdraw());
+            //console.log(await market.connect(addr1).getWithdraw());
 
             // console.log(await provider.getBalance(owner.address));
             // console.log(await provider.getBalance(addr1.address));
@@ -183,7 +184,7 @@ describe('Farm contract', () => {
 
             await market.connect(owner).listItemOnAuction(elems.address, 1, 10, 1);
 
-            await market.connect(addr2).makeBid(1, 20, {value: hre.ethers.utils.parseEther("20")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("20")});
 
             await time.increase(259300);
 
@@ -293,7 +294,7 @@ describe('Farm contract', () => {
 
             await items.connect(addr1).setApprovalForAll(market.address, true);
             await market.connect(addr1).listItemOnAuction(items.address, 1, 10, 2);
-            await market.connect(addr2).makeBid(1, 20, {value: hre.ethers.utils.parseEther("20")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("20")});
             await expect(market.connect(addr1).cancelAuction(1)).to.be.revertedWith('Bet already placed');
         });
 
@@ -305,10 +306,10 @@ describe('Farm contract', () => {
 
             await market.connect(owner).listItemOnAuction(items.address, 1, 10, 2);
 
-            await market.connect(addr2).makeBid(1, 20, {value: hre.ethers.utils.parseEther("20")});
-            await market.connect(addr1).makeBid(1, 30, {value: hre.ethers.utils.parseEther("30")});
-            await market.connect(addr2).makeBid(1, 40, {value: hre.ethers.utils.parseEther("40")});
-            await market.connect(addr1).makeBid(1, 50, {value: hre.ethers.utils.parseEther("50")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("20")});
+            await market.connect(addr1).makeBid(1, {value: hre.ethers.utils.parseEther("30")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("40")});
+            await market.connect(addr1).makeBid(1, {value: hre.ethers.utils.parseEther("50")});
 
             await expect(market.connect(addr1).finishAuction(1)).to.be.revertedWith('Auction hasnt ended');
 
@@ -333,8 +334,8 @@ describe('Farm contract', () => {
             await market.connect(owner).listItemOnAuction(items.address, 1, 10, 2);
 
             
-            await market.connect(addr2).makeBid(1, 20, {value: hre.ethers.utils.parseEther("20")});
-            await market.connect(addr1).makeBid(1, 30, {value: hre.ethers.utils.parseEther("30")});
+            await market.connect(addr2).makeBid(1, {value: hre.ethers.utils.parseEther("20")});
+            await market.connect(addr1).makeBid(1, {value: hre.ethers.utils.parseEther("30")});
 
             await time.increase(259300);
 

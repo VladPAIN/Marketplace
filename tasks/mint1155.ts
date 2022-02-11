@@ -3,11 +3,12 @@ import { task } from "hardhat/config";
 import "@nomiclabs/hardhat-web3";
 
 task("mint721", "Mint")
-    .addParam("url", "tokenURI")
+    .addParam("tokenid", "Token id")
+    .addParam("amount", "Amount tokens")
     .setAction(async (args) => {
 
         const market = await hre.ethers.getContractAt("Marketplace", process.env.MARKET_ADDRESS);
-        await (await market.mint(process.env.ELEMS_ERC721_ADDRESS, args.url, 1, 1)).wait()
+        await (await market.mint(process.env.ITEMS_ERC1155_ADDRESS, "", args.tokenid, args.amount)).wait()
         console.log("You are mint NFT");
  
     });

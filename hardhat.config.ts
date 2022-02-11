@@ -5,7 +5,7 @@ import 'dotenv/config';
 import "@nomiclabs/hardhat-web3";
 import "@nomiclabs/hardhat-ethers";
 
-//import "./tasks/index";
+import "./tasks/index";
 
 export default {
   solidity: "0.8.10",

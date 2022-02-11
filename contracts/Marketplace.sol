@@ -12,18 +12,16 @@ contract Marketplace is AccessControl {
     bytes4 private constant ERC721_INTERFACE = 0x80ac58cd;
     bytes4 private constant ERC1155_INTERFACE = 0xd9b67a26;
 
-    enum TokenStatus { Active, Sold, Cancel }
+    enum OfferStatus { Active, Sold, Cancel }
     enum TokenStandart { ERC721, ERC1155 }
-    enum AuctionStatus { Active, End, Cancel }
 
     uint256 _tokensIdOnSale;
     uint256 _auctionId;
-    uint256 auctionTime = 259200;
-    uint256 bidForEnding = 3;
-    uint256 decimals = 10**18;
+    uint256 public auctionTime = 259200;
+    uint256 public bidForEnding = 3;
 
     struct Listing {
-        TokenStatus status;
+        OfferStatus status;
         TokenStandart standart;
         address seller;
         address token;
@@ -33,14 +31,14 @@ contract Marketplace is AccessControl {
     }
 
     struct Auction {
-        AuctionStatus auctionStatus;
+        OfferStatus auctionStatus;
         TokenStandart standart;
         address seller;
         address token;
+        address buyer;
         uint256 tokenId;
         uint256 startPrice;
         uint256 amount;
-        address buyer;
         uint256 bid;
         uint256 numBid;
         uint256 startTime;
@@ -89,18 +87,10 @@ contract Marketplace is AccessControl {
         }
     }
 
-    function getAuctionTime() view public returns(uint256) {
-        return auctionTime;
-    }
-
     function setAuctionTime(uint256 newAuctionTime) public returns(bool) {
         require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not a admin");
         auctionTime = newAuctionTime;
         return true;
-    }
-
-    function getMinBid() view public returns(uint256) {
-        return bidForEnding;
     }
 
     function setMinBid(uint256 minBid) public returns(bool) {
@@ -113,25 +103,26 @@ contract Marketplace is AccessControl {
 
         require(amount >= 1, "Error amount");
 
+        _tokensIdOnSale++;
+
         if(IERC165(token).supportsInterface(ERC721_INTERFACE)) {
+            require(amount == 1, "Amount should be equal to 1");
             ERC721(token).safeTransferFrom(msg.sender, address(this), tokenId);
 
-            _tokensIdOnSale++;
-            listings[_tokensIdOnSale] = Listing(TokenStatus.Active, TokenStandart.ERC721, msg.sender, token, tokenId, price, 1);
-            emit ListToken(_tokensIdOnSale, msg.sender, token, tokenId, price, 1);
+            listings[_tokensIdOnSale] = Listing(OfferStatus.Active, TokenStandart.ERC721, msg.sender, token, tokenId, price, 1);
         }
 
         else if(IERC165(token).supportsInterface(ERC1155_INTERFACE)) {
             ERC1155(token).safeTransferFrom(msg.sender, address(this), tokenId, amount, '0x');
 
-            _tokensIdOnSale++;
-            listings[_tokensIdOnSale] = Listing(TokenStatus.Active, TokenStandart.ERC1155, msg.sender, token, tokenId, price, amount);
-            emit ListToken(_tokensIdOnSale, msg.sender, token, tokenId, price, amount);
+            listings[_tokensIdOnSale] = Listing(OfferStatus.Active, TokenStandart.ERC1155, msg.sender, token, tokenId, price, amount);
         }
 
         else {
             revert("Wrong address");
         }
+
+        emit ListToken(_tokensIdOnSale, msg.sender, token, tokenId, price, amount);
 
     }
 
@@ -143,105 +134,101 @@ contract Marketplace is AccessControl {
     function buyItem(uint256 listedTokenId, uint256 amountTokens) external payable {
 
         require(msg.sender != listings[listedTokenId].seller, "Seller cannot be buyer");
-		require(listings[listedTokenId].status == TokenStatus.Active, "Listing is not active");
+		require(listings[listedTokenId].status == OfferStatus.Active, "Listing is not active");
         require(listings[listedTokenId].amount >= amountTokens, "Dont have enough tokens");
         require(msg.value >= listings[listedTokenId].price*amountTokens, "You dont have enough ETH");
 
         if(listings[listedTokenId].standart == TokenStandart.ERC721) {
-            listings[listedTokenId].status = TokenStatus.Sold;
+            listings[listedTokenId].status = OfferStatus.Sold;
 
             IERC721(listings[listedTokenId].token).safeTransferFrom(address(this), msg.sender, listings[listedTokenId].tokenId);
-            _safeTransferETH(listings[listedTokenId].seller, listings[listedTokenId].price);
-
-            emit BuyToken(listedTokenId, msg.sender, listings[listedTokenId].token, listings[listedTokenId].tokenId, listings[listedTokenId].price, 1);
         }
 
         else if(listings[listedTokenId].standart == TokenStandart.ERC1155) {
-            if((listings[listedTokenId].amount - amountTokens) == 0) { listings[listedTokenId].status = TokenStatus.Sold; }
+            if((listings[listedTokenId].amount - amountTokens) == 0) { listings[listedTokenId].status = OfferStatus.Sold; }
 
             IERC1155(listings[listedTokenId].token).safeTransferFrom(address(this), msg.sender, listings[listedTokenId].tokenId, amountTokens, '0x');
-            _safeTransferETH(listings[listedTokenId].seller, listings[listedTokenId].price*amountTokens);
-
-            emit BuyToken(listedTokenId, msg.sender, listings[listedTokenId].token, listings[listedTokenId].tokenId, listings[listedTokenId].price, amountTokens);
         }
+
+        emit BuyToken(listedTokenId, msg.sender, listings[listedTokenId].token, listings[listedTokenId].tokenId, listings[listedTokenId].price, amountTokens);
 
     }
 
     function cancel(uint256 listedTokenId, uint256 amountTokens) public {
         require(msg.sender == listings[listedTokenId].seller, "Only seller can cancel listing");
-		require(listings[listedTokenId].status == TokenStatus.Active, "Listing is not active");
+		require(listings[listedTokenId].status == OfferStatus.Active, "Listing is not active");
         require(listings[listedTokenId].amount >= amountTokens, "Dont have enough tokens");
 
         if(listings[listedTokenId].standart == TokenStandart.ERC721) {
-            listings[listedTokenId].status = TokenStatus.Cancel;
+            listings[listedTokenId].status = OfferStatus.Cancel;
             
             IERC721(listings[listedTokenId].token).safeTransferFrom(address(this), msg.sender, listings[listedTokenId].tokenId);
-
-            emit Cancel(listings[listedTokenId].seller, listedTokenId, 1);
         }
 
         else if(listings[listedTokenId].standart == TokenStandart.ERC1155) {
-            if((listings[listedTokenId].amount - amountTokens) == 0) { listings[listedTokenId].status = TokenStatus.Sold; }
+            if((listings[listedTokenId].amount - amountTokens) == 0) { listings[listedTokenId].status = OfferStatus.Sold; }
 
             IERC1155(listings[listedTokenId].token).safeTransferFrom(address(this), msg.sender, listings[listedTokenId].tokenId, amountTokens, '0x');
             listings[listedTokenId].amount -= amountTokens;
-            emit Cancel(listings[listedTokenId].seller, listedTokenId, amountTokens);
         }
+
+        emit Cancel(listings[listedTokenId].seller, listedTokenId, amountTokens);
 
     }
 
     function listItemOnAuction(address token, uint256 tokenId, uint256 startPrice, uint256 amount) public {
         
         require(amount >= 1, "Error amount");
+
+        _auctionId++;
+
         
         if(IERC165(token).supportsInterface(ERC721_INTERFACE)) {
+            require(amount == 1, "Amount should be equal to 1");
             ERC721(token).safeTransferFrom(msg.sender, address(this), tokenId);
-            _auctionId++;
 
-            auctions[_auctionId] = Auction(AuctionStatus.Active, TokenStandart.ERC721, msg.sender, token, tokenId, startPrice, 1, address(0x0), startPrice, 0, block.timestamp);
-            emit CreateAuction(_auctionId, msg.sender, token, tokenId, startPrice, 1, block.timestamp);
+            auctions[_auctionId] = Auction(OfferStatus.Active, TokenStandart.ERC721, msg.sender, token, address(0x0), tokenId, startPrice, 1, startPrice, 0, block.timestamp);
         }
 
         else if(IERC165(token).supportsInterface(ERC1155_INTERFACE)) {
             ERC1155(token).safeTransferFrom(msg.sender, address(this), tokenId, amount, '');
-            _auctionId++;
 
-            auctions[_auctionId] = Auction(AuctionStatus.Active, TokenStandart.ERC1155, msg.sender, token, tokenId, startPrice, amount, address(0x0), startPrice, 0, block.timestamp);
-            emit CreateAuction(_auctionId, msg.sender, token, tokenId, startPrice, amount, block.timestamp);
+            auctions[_auctionId] = Auction(OfferStatus.Active, TokenStandart.ERC1155, msg.sender, token, address(0x0), tokenId, startPrice, amount, startPrice, 0, block.timestamp);
         }
 
         else {
             revert("Wrong address");
         }
+
+        emit CreateAuction(_auctionId, msg.sender, token, tokenId, startPrice, amount, block.timestamp);
     }
 
-    function makeBid(uint256 auctionId, uint256 newPrice) external payable {
+    function makeBid(uint256 auctionId) external payable {
         require(msg.sender != auctions[auctionId].seller, "Seller cannot bid");
-		require(auctions[auctionId].auctionStatus == AuctionStatus.Active, "Auction is not active");
-        require(msg.value >= newPrice, "You dont have enough ETH");
+		require(auctions[auctionId].auctionStatus == OfferStatus.Active, "Auction is not active");
         require(auctions[auctionId].startTime + auctionTime > block.timestamp, "Auction is not active");
-        require(newPrice > auctions[auctionId].bid, "New price cannot be lower then last bid price");
+        require(msg.value > auctions[auctionId].bid, "New price cannot be lower then last bid price");
 
         if(auctions[auctionId].buyer != address(0)){
             pendingReturns[auctions[auctionId].buyer] += auctions[auctionId].bid;
         }
         
         auctions[auctionId].buyer = msg.sender;
-        auctions[auctionId].bid = newPrice;
+        auctions[auctionId].bid = msg.value;
         auctions[auctionId].numBid++;
 
         
 
-        _safeTransferETH(address(this), newPrice);
+        _safeTransferETH(address(this), msg.value);
 
-        emit MakeBid(auctionId, msg.sender, newPrice, auctions[auctionId].numBid);
+        emit MakeBid(auctionId, msg.sender, msg.value, auctions[auctionId].numBid);
 
     }
 
     function cancelAuction(uint256 auctionId) public {
         require(auctions[auctionId].seller == msg.sender, "Caller is not a seller");
         require(auctions[auctionId].numBid == 0, "Bet already placed");
-        auctions[auctionId].auctionStatus == AuctionStatus.Cancel;
+        auctions[auctionId].auctionStatus == OfferStatus.Cancel;
 
 
         if(auctions[auctionId].standart == TokenStandart.ERC721) {
@@ -257,7 +244,7 @@ contract Marketplace is AccessControl {
     function finishAuction(uint256 auctionId) public {
         require(auctions[auctionId].seller == msg.sender || auctions[auctionId].buyer == msg.sender || hasRole(ADMIN_ROLE, msg.sender), "Caller is not a seller or buyer");
         require(block.timestamp > auctions[auctionId].startTime + auctionTime, "Auction hasnt ended");
-        auctions[auctionId].auctionStatus == AuctionStatus.End;
+        auctions[auctionId].auctionStatus == OfferStatus.Sold;
 
         if(auctions[auctionId].numBid >= bidForEnding) {
             pendingReturns[auctions[auctionId].seller] += auctions[auctionId].bid;
@@ -300,7 +287,7 @@ contract Marketplace is AccessControl {
         uint256 amount = pendingReturns[msg.sender];
         if (amount > 0) {
             pendingReturns[msg.sender] = 0;
-            _safeTransferETH(msg.sender, amount*decimals);
+            _safeTransferETH(msg.sender, amount);
         }
 
     }

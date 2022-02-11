@@ -2,7 +2,7 @@ import "@nomiclabs/hardhat-ethers";
 import { task } from "hardhat/config";
 import "@nomiclabs/hardhat-web3";
 
-task("mint721", "Mint")
+task("mint1155", "Mint")
     .addParam("tokenid", "Token id")
     .addParam("amount", "Amount tokens")
     .setAction(async (args) => {
